@@ -77,7 +77,7 @@ export default function Auth() {
               {!isLogin && (
                 <div className="space-y-2">
                   <Label htmlFor="name">Full Name</Label>
-                  <Input id="name" placeholder="John Doe" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
+                  <Input id="name" placeholder="Harsh Yadav" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
                 </div>
               )}
               <div className="space-y-2">
