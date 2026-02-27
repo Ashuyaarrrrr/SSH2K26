@@ -103,3 +103,7 @@ def predict(data: PredictionInput):
     except Exception as e:
         print("ERROR:", str(e))
         raise HTTPException(status_code=500, detail=str(e))
+    
+    from fastapi.staticfiles import StaticFiles
+
+    app.mount("/", StaticFiles(directory="dist", html=True), name="static")
