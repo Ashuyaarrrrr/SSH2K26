@@ -1,29 +1,10 @@
-import { useMemo } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useFields } from "@/hooks/useFields";
 import AppHeader from "@/components/AppHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
-import {
-  ArrowLeft, Droplets, Thermometer, Wind, CloudRain, Sprout, Clock,
-  Beaker, Lightbulb, TrendingUp, Loader2,
-} from "lucide-react";
-import {
-  calculateRecommendations,
-  generateSimulatedWeather,
-  generateMockChartData,
-} from "@/lib/recommendations";
-import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area,
-} from "recharts";
-
-const moistureBadge: Record<string, string> = {
-  dry: "bg-destructive text-destructive-foreground",
-  healthy: "bg-success text-success-foreground",
-  moist: "bg-info text-info-foreground",
-};
+import { Loader2, ArrowLeft, Droplets, Thermometer, Wind, CloudRain } from "lucide-react";
 
 export default function FieldDetail() {
   const { id } = useParams();
@@ -32,29 +13,64 @@ export default function FieldDetail() {
 
   const field = fields.find((f) => f.id === id);
 
-  const weather = useMemo(
-    () => (field ? generateSimulatedWeather(field.location || "default") : null),
-    [field]
-  );
+  const [aiData, setAiData] = useState<any>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [animatedValue, setAnimatedValue] = useState(0);
 
-  const recs = useMemo(
-    () =>
-      field && weather
-        ? calculateRecommendations(
-            field.crop_type,
-            field.plantation_date,
-            field.soil_type,
-            field.irrigation_type,
-            field.soil_moisture,
-            weather
-          )
-        : null,
-    [field, weather]
-  );
+  useEffect(() => {
+    if (!field) return;
 
-  const chartData = useMemo(() => generateMockChartData(7), []);
+    const fetchPrediction = async () => {
+      try {
+        setAiLoading(true);
 
-  if (isLoading) {
+        const response = await fetch("http://127.0.0.1:8000/predict", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            location: field.location,
+            crop_type: field.crop_type,
+            growth_stage: "vegetative",
+            soil_type: field.soil_type,
+            irrigation_method: field.irrigation_type,
+          }),
+        });
+
+        const data = await response.json();
+        setAiData(data);
+      } catch (err) {
+        console.error("AI Error:", err);
+      } finally {
+        setAiLoading(false);
+      }
+    };
+
+    fetchPrediction();
+  }, [field]);
+
+  // Smooth number animation
+  useEffect(() => {
+    if (!aiData) return;
+
+    const target = aiData.prediction.today_irrigation_minutes;
+    let start = 0;
+
+    const duration = 1000;
+    const increment = target / (duration / 16);
+
+    const counter = setInterval(() => {
+      start += increment;
+      if (start >= target) {
+        start = target;
+        clearInterval(counter);
+      }
+      setAnimatedValue(Math.floor(start));
+    }, 16);
+
+    return () => clearInterval(counter);
+  }, [aiData]);
+
+  if (isLoading || aiLoading) {
     return (
       <div className="min-h-screen bg-background">
         <AppHeader />
@@ -65,12 +81,14 @@ export default function FieldDetail() {
     );
   }
 
-  if (!field || !recs || !weather) {
+  if (!field || !aiData) {
     return (
       <div className="min-h-screen bg-background">
         <AppHeader />
         <div className="container py-20 text-center">
-          <h2 className="text-xl font-display font-semibold mb-2">Field not found</h2>
+          <h2 className="text-xl font-semibold mb-4">
+            Field not found or AI failed
+          </h2>
           <Button variant="outline" onClick={() => navigate("/")}>
             Go back
           </Button>
@@ -79,222 +97,95 @@ export default function FieldDetail() {
     );
   }
 
+  const weather = aiData.weather;
+  const irrigation = aiData.prediction.today_irrigation_minutes;
+  const plan = aiData.prediction["7_day_irrigation_plan"];
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-br from-background to-muted/30 transition-all duration-500">
       <AppHeader />
-      <main className="container py-6 space-y-6">
-        {/* Top Bar */}
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="sm" onClick={() => navigate("/")}>
-            <ArrowLeft className="w-4 h-4 mr-1" /> Back
-          </Button>
-          <div>
-            <h1 className="text-2xl font-display font-bold">{field.field_name}</h1>
-            <p className="text-sm text-muted-foreground">
-              {field.crop_type} · {field.soil_type} soil · {field.irrigation_type} irrigation
-            </p>
-          </div>
-        </div>
 
-        {/* Status Cards Row */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Card className="animate-fade-in">
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <Clock className="w-5 h-5 text-primary" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Crop Age</p>
-                  <p className="text-2xl font-bold">{recs.crop_age_days} <span className="text-sm font-normal text-muted-foreground">days</span></p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+      <main className="container py-8 space-y-8 animate-fade-in">
+        <Button
+          variant="ghost"
+          className="hover:translate-x-1 transition-transform duration-200"
+          onClick={() => navigate("/")}
+        >
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Back
+        </Button>
 
-          <Card className="animate-fade-in" style={{ animationDelay: "0.1s" }}>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-success/10 flex items-center justify-center">
-                  <Sprout className="w-5 h-5 text-success" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Growth Stage</p>
-                  <p className="text-2xl font-bold">{recs.growth_stage}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+        <h1 className="text-3xl font-bold tracking-tight">
+          {field.field_name}
+        </h1>
 
-          <Card className="animate-fade-in" style={{ animationDelay: "0.2s" }}>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-info/10 flex items-center justify-center">
-                  <Droplets className="w-5 h-5 text-info" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Irrigation</p>
-                  <p className="text-2xl font-bold">{recs.irrigation_minutes} <span className="text-sm font-normal text-muted-foreground">min</span></p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+        {/* Weather Card */}
+        <Card className="hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+          <CardHeader>
+            <CardTitle className="text-lg font-semibold">
+              🌦 Weather Conditions
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-2 gap-6 text-sm">
+            <div className="flex items-center gap-2 hover:scale-105 transition-transform">
+              <Thermometer className="text-orange-500" />
+              {weather.temperature}°C
+            </div>
+            <div className="flex items-center gap-2 hover:scale-105 transition-transform">
+              <Droplets className="text-blue-500" />
+              {weather.humidity}%
+            </div>
+            <div className="flex items-center gap-2 hover:scale-105 transition-transform">
+              <Wind className="text-gray-500" />
+              {weather.wind_speed} m/s
+            </div>
+            <div className="flex items-center gap-2 hover:scale-105 transition-transform">
+              <CloudRain className="text-cyan-600" />
+              {weather.rainfall} mm
+            </div>
+          </CardContent>
+        </Card>
 
-          <Card className="animate-fade-in" style={{ animationDelay: "0.3s" }}>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: "hsl(var(--moisture-" + recs.moisture_status + ") / 0.1)" }}>
-                  <TrendingUp className="w-5 h-5" style={{ color: `hsl(var(--moisture-${recs.moisture_status}))` }} />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Moisture</p>
-                  <Badge className={moistureBadge[recs.moisture_status]}>{recs.moisture_status}</Badge>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        {/* Irrigation Recommendation */}
+        <Card className="hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 border-primary/20">
+          <CardHeader>
+            <CardTitle className="text-lg font-semibold">
+              💧 AI Irrigation Recommendation
+            </CardTitle>
+          </CardHeader>
 
-        {/* Weather + Irrigation Row */}
-        <div className="grid gap-6 lg:grid-cols-2">
-          {/* Weather */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="font-display text-lg flex items-center gap-2">
-                <CloudRain className="w-5 h-5 text-info" /> Weather Conditions
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                  <Thermometer className="w-5 h-5 text-warning" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">Temperature</p>
-                    <p className="font-semibold">{weather.temperature}°C</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                  <Droplets className="w-5 h-5 text-info" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">Humidity</p>
-                    <p className="font-semibold">{weather.humidity}%</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                  <Wind className="w-5 h-5 text-muted-foreground" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">Wind</p>
-                    <p className="font-semibold">{weather.wind_speed} km/h</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                  <CloudRain className="w-5 h-5 text-info" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">Rain</p>
-                    <p className="font-semibold">
-                      {weather.rainfall_prediction ? `${weather.rain_amount_mm}mm expected` : "None"}
-                    </p>
-                  </div>
-                </div>
+          <CardContent className="space-y-6">
+            <div className="text-center p-8 rounded-2xl bg-gradient-to-r from-primary/10 to-primary/5 transition-all duration-500">
+              <div className="text-6xl font-extrabold text-primary tracking-tight">
+                {animatedValue}
               </div>
-              <p className="text-sm text-muted-foreground mt-3">{weather.description}</p>
-            </CardContent>
-          </Card>
+              <p className="text-sm text-muted-foreground mt-2">
+                Litres per hectare (L/ha)
+              </p>
+            </div>
 
-          {/* Irrigation Recommendation */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="font-display text-lg flex items-center gap-2">
-                <Droplets className="w-5 h-5 text-primary" /> Irrigation Recommendation
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="text-center p-6 rounded-xl bg-primary/5">
-                <p className="text-5xl font-bold text-primary">{recs.irrigation_minutes}</p>
-                <p className="text-sm text-muted-foreground mt-1">minutes recommended</p>
-              </div>
-              <p className="text-sm text-muted-foreground">{recs.irrigation_reason}</p>
-              <div>
-                <p className="text-xs text-muted-foreground mb-1">Efficiency ({field.irrigation_type})</p>
-                <Progress value={field.irrigation_type === "drip" ? 90 : field.irrigation_type === "sprinkler" ? 75 : 60} />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Fertilizer + Suggestions */}
-        <div className="grid gap-6 lg:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle className="font-display text-lg flex items-center gap-2">
-                <Beaker className="w-5 h-5 text-accent" /> Fertilizer Recommendation
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="p-4 rounded-xl bg-secondary/50">
-                <p className="font-semibold text-secondary-foreground">{recs.fertilizer}</p>
-                <p className="text-sm text-muted-foreground mt-1">{recs.fertilizer_detail}</p>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="font-display text-lg flex items-center gap-2">
-                <Lightbulb className="w-5 h-5 text-warning" /> Smart Suggestions
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
+            <div>
+              <h3 className="font-semibold mb-3 text-muted-foreground uppercase text-xs tracking-wider">
+                7-Day Projection
+              </h3>
               <ul className="space-y-2">
-                {recs.suggestions.map((s, i) => (
-                  <li key={i} className="text-sm p-3 rounded-lg bg-muted/50">{s}</li>
+                {plan.map((day: any, index: number) => (
+                  <li
+                    key={day.day}
+                    className="p-3 rounded-lg bg-muted/40 hover:bg-primary/10 transition-all duration-300 hover:translate-x-1"
+                    style={{ animationDelay: `${index * 100}ms` }}
+                  >
+                    Day {day.day}:{" "}
+                    <span className="font-semibold text-primary">
+                      {day.projected_irrigation_minutes}
+                    </span>{" "}
+                    L/ha
+                  </li>
                 ))}
               </ul>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Charts */}
-        <div className="grid gap-6 lg:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle className="font-display text-lg">Moisture & Temperature Trend</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="date" tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" />
-                    <YAxis tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" />
-                    <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }} />
-                    <Line type="monotone" dataKey="moisture" stroke="hsl(var(--info))" strokeWidth={2} name="Moisture %" dot={false} />
-                    <Line type="monotone" dataKey="temperature" stroke="hsl(var(--warning))" strokeWidth={2} name="Temp °C" dot={false} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="font-display text-lg">Irrigation History</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="date" tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" />
-                    <YAxis tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" />
-                    <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }} />
-                    <Area type="monotone" dataKey="irrigation" stroke="hsl(var(--primary))" fill="hsl(var(--primary) / 0.15)" strokeWidth={2} name="Irrigation (min)" />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+            </div>
+          </CardContent>
+        </Card>
       </main>
     </div>
   );

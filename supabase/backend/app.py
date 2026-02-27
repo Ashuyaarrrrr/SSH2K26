@@ -41,12 +41,13 @@ def root():
 @app.post("/predict")
 def predict(data: PredictionInput):
     try:
+
         # 🌦 Fetch weather data
         weather_url = (
             f"https://api.openweathermap.org/data/2.5/weather"
             f"?q={data.location}&appid={WEATHER_API_KEY}&units=metric"
         )
-
+             
         response = requests.get(weather_url, timeout=10)
         weather_res = response.json()
 
@@ -71,7 +72,9 @@ def predict(data: PredictionInput):
             "irrigation_method": data.irrigation_method
         }])
 
-        # 🤖 Predict irrigation minutes
+        # Predict irrigation minutes
+        print("MODEL INPUT COLUMNS:", model_input.columns)
+        print("MODEL EXPECTED FEATURES:", model.feature_names_in_)
         irrigation_minutes = int(model.predict(model_input)[0])
 
         
