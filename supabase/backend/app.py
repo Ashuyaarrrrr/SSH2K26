@@ -8,7 +8,7 @@ from typing import List
 
 app = FastAPI()
 
-# ✅ Enable CORS (important for frontend connection)
+#  Enable CORS (important for frontend connection)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # Hackathon safe
@@ -17,14 +17,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ✅ Load trained model
+#  Load trained model
 model = joblib.load("irrigation_model.pkl")
 
-# ✅ Your OpenWeather API Key
+#  Your OpenWeather API Key
 WEATHER_API_KEY = "370405cd8200d2aa615e9abaee7f014b"
 
 
-# ✅ Input schema
+#  Input schema
 class PredictionInput(BaseModel):
     location: str
     crop_type: str
@@ -59,7 +59,7 @@ def predict(data: PredictionInput):
 
         rainfall = float(weather_res.get("rain", {}).get("1h", 0.0))
 
-        # ✅ Model Input (Exact 8 Features)
+        #  Model Input
         model_input = pd.DataFrame([{
             "temperature": temperature,
             "humidity": humidity,
@@ -74,7 +74,7 @@ def predict(data: PredictionInput):
         # 🤖 Predict irrigation minutes
         irrigation_minutes = int(model.predict(model_input)[0])
 
-        # 📅 Generate 7-day irrigation plan
+        
         irrigation_plan: List[dict] = []
 
         for day in range(1, 8):

@@ -174,7 +174,7 @@ export function calculateRecommendations(
     suggestions.push("💨 High winds — avoid sprinkler irrigation, prefer drip.");
   }
   if (suggestions.length === 0) {
-    suggestions.push("✅ Conditions look optimal — maintain current practices.");
+    suggestions.push(" Conditions look optimal — maintain current practices.");
   }
 
   return {

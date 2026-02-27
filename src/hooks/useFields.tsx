@@ -21,7 +21,7 @@ export function useFields() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  // ✅ FETCH FIELDS (User specific)
+  //  FETCH FIELDS (User specific)
   const fieldsQuery = useQuery({
     queryKey: ["fields", user?.id],
     queryFn: async () => {
@@ -37,7 +37,7 @@ export function useFields() {
     enabled: !!user,
   });
 
-  // ✅ CREATE FIELD
+  //  CREATE FIELD
   const createField = useMutation({
     mutationFn: async (
       field: Omit<Field, "id" | "user_id" | "created_at" | "updated_at">
@@ -58,7 +58,7 @@ export function useFields() {
       queryClient.invalidateQueries({ queryKey: ["fields", user?.id] }),
   });
 
-  // ✅ UPDATE FIELD (User Safe)
+  //  UPDATE FIELD (User Safe)
   const updateField = useMutation({
     mutationFn: async ({ id, ...updates }: Partial<Field> & { id: string }) => {
       const { data, error } = await supabase
@@ -76,7 +76,7 @@ export function useFields() {
       queryClient.invalidateQueries({ queryKey: ["fields", user?.id] }),
   });
 
-  // ✅ DELETE FIELD (User Safe)
+  //  DELETE FIELD (User Safe)
   const deleteField = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
